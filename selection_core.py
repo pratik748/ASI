@@ -17,11 +17,6 @@ class SelectionCore:
                  reflexivity_penalty_weight: float = 0.2):
         """
         Initialize the Selection Core.
-
-        :param causal_engine: The Truth Crucible validator.
-        :param memory: The Experience Engine.
-        :param ignition_threshold: Threshold to fork reality.
-        :param reflexivity_penalty_weight: Penalty for drastic environment alterations (Observer Effect).
         """
         self.causal_engine = causal_engine
         self.memory = memory
@@ -32,17 +27,8 @@ class SelectionCore:
         """
         Layer VII: Tension Ignition.
         T = ||Sp - St|| * grad U
-
-        Using a simplified utility gradient (grad U) proxy:
-        Directional change that improves stability and growth.
         """
-        # Norm of vector difference
         delta_s = np.linalg.norm(Sp.vector - St.vector)
-
-        # Mocking the utility gradient: Grad U = - (Sp - St) / ||Sp - St||
-        # (Steepest ascent toward the target attractor)
-        # Tension = ||Sp - St|| * ||Grad U|| = ||Sp - St||
-
         tension = float(delta_s)
         return tension > self.ignition_threshold
 
@@ -59,7 +45,6 @@ class SelectionCore:
         final_state = trajectory[-1]
 
         # 1. Expected Goal Achievement (E[Goal]): Proximity to St.
-        # Handle zeroed-out invalid states (Layer IV: Physical Law Invariants)
         if np.all(final_state.vector == 0):
             return 0.0
 
@@ -67,15 +52,17 @@ class SelectionCore:
         expected_goal = 1.0 / (1.0 + proximity)
 
         # 2. Probability of Risk (P(Risk)):
-        # - Violated state constraints (Instantly zeroed out, but check path)
         risk_penalty = 1.0
+
+        # Check boundary violations along the trajectory
         for s in trajectory:
             if np.all(s.vector == 0):
                 risk_penalty += 10.0 # High penalty for path death
 
-        # Experience-driven bias (Scar Memory)
-        scar_penalty = self.memory.get_bias_adjustment(Sp)
-        risk_penalty += scar_penalty
+            # Layer X: Trajectory-based Scar Memory Pruning.
+            # Does any state in this proposed path resemble a past trauma?
+            path_scar_penalty = self.memory.get_bias_adjustment(s)
+            risk_penalty += path_scar_penalty
 
         # Reflexivity (Observer Effect - Layer VI)
         reflexivity = self.causal_engine.calculate_entropy_delta(Sp, final_state)
@@ -109,7 +96,7 @@ class SelectionCore:
                 best_trajectory = trajectory
 
         # Decision Gate (Layer VI)
-        if best_score < 0.05:
+        if best_score < 0.02: # Adjusted threshold for trajectory-based scoring
             return None, None, best_score
 
         return best_action, best_trajectory, best_score

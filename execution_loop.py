@@ -19,13 +19,15 @@ class ExecutionLoop:
                  model: MacroeconomicModel,
                  causal_engine: CausalRuleEngine,
                  manifold_engine: ManifoldEngine,
-                 selection_core: SelectionCore):
+                 selection_core: SelectionCore,
+                 trauma_threshold: float = 5.0):
         self.interpreter = interpreter
         self.memory = memory
         self.model = model
         self.causal_engine = causal_engine
         self.manifold_engine = manifold_engine
         self.selection_core = selection_core
+        self.trauma_threshold = trauma_threshold
 
     def run_cycle(self, raw_input: Dict[str, float], goal: Dict[str, float], candidate_actions: List[Action]) -> Dict[str, Any]:
         """
@@ -41,12 +43,14 @@ class ExecutionLoop:
         if not self.selection_core.check_tension_ignition(Sp, St):
             return {"status": "Quiescent", "tension": "Below Ignition Threshold"}
 
-        # 3. Memory-based Pruning (Layer X)
-        # Pruning paths that resemble past traumas *before* full manifold simulation.
+        # 3. Pre-Simulation Scar Memory Pruning (Layer X)
+        # Instantly prune paths if the current state resembles extreme past trauma.
         scar_penalty = self.memory.get_bias_adjustment(Sp)
-        if scar_penalty > 10.0: # Hypothetical trauma threshold
-            # System freeze or alternative selection could happen here.
-            pass
+        if scar_penalty > self.trauma_threshold:
+            return {
+                "status": "Aborted",
+                "reason": f"System Stasis: Current state resembles past trauma (Scar Penalty: {scar_penalty:.2f})"
+            }
 
         # 4. Manifold Twin Generation & MCTS Simulation (Layer V Recursive Foresight)
         # Using ProcessPoolExecutor via generate_twins_parallel
@@ -61,18 +65,16 @@ class ExecutionLoop:
             return {"status": "Aborted", "reason": "No safe action found (Decision Gate)"}
 
         # 6. Reality Commit (Layer IX)
-        # Execute the first step of the dominant trajectory
         actual_vector = self.model.step_forward(Sp, best_action.vector).vector
         actual_state = WorldState(actual_vector, Sp.labels)
 
         # 7. Trauma Archiving & Scar Memory (Layer X)
-        # Identify low-performing manifolds (bottom 20%) to push to FAISS as Scars.
         manifold_scores = []
         for action, trajectory in simulated_manifolds:
             score = self.selection_core.calculate_sff(Sp, St, action, trajectory, self.manifold_engine)
             manifold_scores.append((action, trajectory, score))
 
-        # Sort by score ascending
+        # Sort by score ascending (lowest SFF = potential trauma)
         manifold_scores.sort(key=lambda x: x[2])
 
         # Bottom 20%
@@ -85,7 +87,7 @@ class ExecutionLoop:
                 predicted=trajectory[-1],
                 actual=actual_state,
                 score=score,
-                is_trauma=True
+                is_trauma=(score < 0.1) # Mark as trauma if score is critically low
             )
 
         # 8. Self-Evolution (Layer XI)
